@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario Power-ups 3D</title>
+
+    <!-- Three.js r128 Scripts Standard (Pas de Modules) -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #0b0c1b;
+            --card-bg: rgba(20, 24, 45, 0.85);
+            --card-border: rgba(255, 255, 255, 0.15);
+            --primary: #e60012;
+            --accent-yellow: #ffcc00;
+            --accent-blue: #00d2ff;
+            --accent-green: #00e676;
+            --text-color: #ffffff;
+            --text-dim: #a0a5c0;
+            --font-pixel: 'Press Start 2P', cursive;
+            --font-main: 'Rajdhani', sans-serif;
+            --effect-glow: 0 0 20px rgba(230, 0, 18, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 20% 20%, rgba(230, 0, 18, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(0, 210, 255, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(255, 204, 0, 0.05) 0%, transparent 60%);
+            position: relative;
+        }
+
+        /* Étoiles animées en CSS */
+        .stars-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle var(--duration, 3s) infinite ease-in-out;
+            opacity: var(--opacity, 0.5);
+        }
+
+        @keyframes twinkle {
+            0%, 100% { transform: scale(1); opacity: 0.2; }
+            50% { transform: scale(1.5); opacity: 1; }
+        }
+
+        /* Frame Principal App */
+        #app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 100vh;
+        }
+
+        /* En-tête HUD */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 16px 24px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-title h1 {
+            font-family: var(--font-pixel);
+            font-size: 1.2rem;
+            color: var(--accent-yellow);
+            text-shadow: 2px 2px 0px #000;
+            letter-spacing: 1px;
+        }
+
+        .tag-school {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--accent-yellow);
+            color: var(--accent-yellow);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        /* Master Layout (3D Left, Panel Right) */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 480px;
+            gap: 20px;
+            flex: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Section 3D Viewer avec fond dégradé Mario Sky */
+        .viewer-card {
+            position: relative;
+            background: linear-gradient(180deg, #5c94fc 0%, #a4c2ff 65%, #d0e0ff 100%);
+            border: 2px solid var(--card-border);
+            border-radius: 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+            transition: border-color 0.5s ease, box-shadow 0.5s ease;
+            min-height: 520px;
+        }
+
+        /* Keyframe visual effects according to last decorator */
+        .effect-none {
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .effect-mushroom {
+            border-color: #ff3c3c;
+            box-shadow: 0 0 35px rgba(255, 60, 60, 0.6), inset 0 0 25px rgba(255, 60, 60, 0.3);
+        }
+
+        .effect-fire {
+            border-color: #ff8c00;
+            box-shadow: 0 0 45px rgba(255, 140, 0, 0.8), inset 0 0 35px rgba(255, 60, 60, 0.4);
+            animation: pulse-fire 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-fire {
+            0% { border-color: #ff8c00; box-shadow: 0 0 30px rgba(255, 140, 0, 0.7); }
+            100% { border-color: #ff3c00; box-shadow: 0 0 50px rgba(255, 60, 0, 0.9); }
+        }
+
+        .effect-cape {
+            border-color: #ffd700;
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.7), inset 0 0 25px rgba(255, 215, 0, 0.3);
+        }
+
+        .effect-star {
+            border-image: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3) 1;
+            box-shadow: 0 0 50px rgba(255, 255, 255, 0.8), inset 0 0 30px rgba(255, 230, 0, 0.5);
+            animation: rainbow-border 2s linear infinite;
+        }
+
+        @keyframes rainbow-border {
+            0% { filter: hue-rotate(0deg); }
+            100% { filter: hue-rotate(360deg); }
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            flex: 1;
+            position: relative;
+        }
+
+        #three-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Overlay d'erreur si modèle absente */
+        #model-error-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(11, 12, 27, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        #model-error-overlay h3 {
+            font-family: var(--font-pixel);
+            color: #ff3c3c;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        #model-error-overlay p {
+            color: #d0d5f0;
+            max-width: 500px;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        #model-error-overlay code {
+            background: #1e2238;
+            padding: 8px 14px;
+            border-radius: 6px;
+            color: var(--accent-yellow);
+            font-family: monospace;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Badge d'animation 3D active sur le canvas */
+        .anim-status-badge {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(13, 17, 23, 0.85);
+            border: 1px solid var(--accent-blue);
+            color: var(--accent-blue);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            backdrop-filter: blur(8px);
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        /* Floating Popups d'effets sur le canvas */
+        .popups-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 5;
+        }
+
+        .floating-popup {
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid var(--accent-yellow);
+            color: var(--accent-yellow);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: var(--font-pixel);
+            font-size: 0.8rem;
+            animation: popup-float 2s forwards ease-out;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        @keyframes popup-float {
+            0% { opacity: 0; transform: translateY(20px) scale(0.8); }
+            20% { opacity: 1; transform: translateY(0) scale(1.1); }
+            80% { opacity: 1; transform: translateY(-10px) scale(1); }
+            100% { opacity: 0; transform: translateY(-30px) scale(0.9); }
+        }
+
+        /* Control Panel Right */
+        .panel-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .character-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 15px;
+        }
+
+        .character-header span {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+            font-weight: 700;
+        }
+
+        .character-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 5px;
+            line-height: 1.3;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Stat Bars */
+        .stats-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .stat-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .stat-label .name {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-label .val {
+            font-family: var(--font-pixel);
+            font-size: 0.85rem;
+            color: var(--accent-yellow);
+        }
+
+        .bar-track {
+            height: 14px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .fill-health {
+            background: linear-gradient(90deg, #ff3c3c, #ff7373);
+            box-shadow: 0 0 10px rgba(255, 60, 60, 0.6);
+        }
+
+        .fill-power {
+            background: linear-gradient(90deg, #ff8c00, #ffc000);
+            box-shadow: 0 0 10px rgba(255, 140, 0, 0.6);
+        }
+
+        .fill-speed {
+            background: linear-gradient(90deg, #00d2ff, #00fff2);
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.6);
+        }
+
+        /* Stack Visualizer */
+        .stack-section {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .stack-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stack-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 36px;
+            align-items: center;
+        }
+
+        .badge-decorator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: badge-pop 0.3s ease-out;
+        }
+
+        @keyframes badge-pop {
+            0% { transform: scale(0.7); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .badge-mushroom { background: rgba(230, 0, 18, 0.25); border-color: #ff3c3c; color: #ff9999; }
+        .badge-fire { background: rgba(255, 140, 0, 0.25); border-color: #ff8c00; color: #ffcc80; }
+        .badge-cape { background: rgba(255, 215, 0, 0.25); border-color: #ffd700; color: #fff176; }
+        .badge-star { background: rgba(156, 39, 176, 0.3); border-color: #e040fb; color: #ea80fc; }
+        .badge-base { background: rgba(0, 210, 255, 0.2); border-color: #00d2ff; color: #80d8ff; }
+
+        /* Expression Java */
+        .code-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 12px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.8rem;
+            color: #79c0ff;
+            word-break: break-all;
+            line-height: 1.4;
+            position: relative;
+        }
+
+        .code-box::before {
+            content: "CODE JAVA EN DIRECT";
+            display: block;
+            font-family: var(--font-main);
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+            letter-spacing: 1px;
+        }
+
+        /* Power-up Buttons Grid */
+        .actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btn-action {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-family: var(--font-main);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .btn-action:active {
+            transform: translateY(0);
+        }
+
+        .btn-mushroom { background: linear-gradient(135deg, #c62828, #e53935); }
+        .btn-mushroom:hover { background: linear-gradient(135deg, #d32f2f, #ef5350); }
+
+        .btn-fire { background: linear-gradient(135deg, #ef6c00, #f57c00); }
+        .btn-fire:hover { background: linear-gradient(135deg, #f57c00, #ff9800); }
+
+        .btn-cape { background: linear-gradient(135deg, #fbc02d, #fdd835); color: #000; }
+        .btn-cape:hover { background: linear-gradient(135deg, #fdd835, #ffee58); }
+
+        .btn-star { background: linear-gradient(135deg, #8e24aa, #ab47bc); }
+        .btn-star:hover { background: linear-gradient(135deg, #ab47bc, #ba68c8); }
+
+        .btn-undo {
+            background: rgba(255, 152, 0, 0.2);
+            border-color: #ff9800;
+            color: #ffe0b2;
+        }
+
+        .btn-undo:hover {
+            background: rgba(255, 152, 0, 0.4);
+            color: #ffffff;
+        }
+
+        .btn-reset {
+            background: rgba(244, 67, 54, 0.2);
+            border-color: #f44336;
+            color: #ffcdd2;
+        }
+
+        .btn-reset:hover {
+            background: rgba(244, 67, 54, 0.4);
+            color: #ffffff;
+        }
+
+        /* Panneau Repliable Studio Animation */
+        .studio-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 16px 24px;
+            backdrop-filter: blur(12px);
+        }
+
+        .studio-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .studio-header h3 {
+            font-size: 1.1rem;
+            color: var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .studio-content {
+            margin-top: 15px;
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 15px;
+        }
+
+        .studio-content.open {
+            display: flex;
+        }
+
+        .scrubber-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .scrubber-group label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type=range] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .calibration-controls {
+            display: grid;
+            grid-template-columns: 1fr auto auto auto auto;
+            gap: 10px;
+            align-items: center;
+        }
+
+        select {
+            background: #1e2238;
+            color: white;
+            border: 1px solid var(--card-border);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-weight: 600;
+        }
+
+        .btn-small {
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-small:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .ranges-display {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 8px;
+        }
+
+        .range-item span {
+            color: var(--accent-yellow);
+            font-weight: 700;
+        }
+
+        /* Footer Attribution */
+        footer {
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            padding: 10px 0;
+            margin-top: auto;
+        }
+
+        footer a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Étoiles de fond CSS -->
+    <div class="stars-container" id="stars-container"></div>
+
+    <div id="app-container">
+        <!-- En-tête -->
+        <header>
+            <div class="header-title">
+                <h1>SUPER MARIO POWER-UPS</h1>
+                <span class="tag-school">3D Interactive Game Studio</span>
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-dim);">
+                Real-Time 3D Character Simulator
+            </div>
+        </header>
+
+        <!-- Master Layout -->
+        <div class="main-grid">
+            
+            <!-- Gauche: Viewer 3D -->
+            <div class="viewer-card effect-none" id="viewer-card">
+                <div id="canvas-container">
+                    <canvas id="three-canvas"></canvas>
+                    
+                    <!-- Floating Popups -->
+                    <div class="popups-container" id="popups-container"></div>
+
+                    <!-- Badge d'Animation 3D en direct -->
+                    <div class="anim-status-badge">
+                        <span>🎬 Segment 3D :</span>
+                        <span id="anim-segment-info" style="color: var(--accent-yellow);">IDLE [0s - 4s]</span>
+                    </div>
+
+                    <!-- Overlay d'erreur si modèle 3D introuvable -->
+                    <div id="model-error-overlay">
+                        <h3>MODÈLE 3D INTROUVABLE</h3>
+                        <p>Veuillez copier <code>scene.gltf</code>, <code>scene.bin</code> et le dossier <code>textures/</code> dans le répertoire <code>web/model/</code> du projet.</p>
+                        <p style="font-size:0.85rem; color: var(--text-dim);">Le projet contient déjà un script d'initialisation qui s'en charge automatiquement.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Droite: HUD Panneau de Contrôle -->
+            <div class="panel-card">
+                <div class="character-header">
+                    <span>État du Personnage</span>
+                    <div class="character-title" id="char-description">Mario</div>
+                </div>
+
+                <!-- Stats Barres Animées -->
+                <div class="stats-list">
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span class="name">❤️ Santé (Max 300)</span>
+                            <span class="val" id="val-health">100</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill fill-health" id="bar-health" style="width: 33.33%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span class="name">⚔️ Puissance (Max 300)</span>
+                            <span class="val" id="val-power">10</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill fill-power" id="bar-power" style="width: 3.33%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="stat-item">
+                        <div class="stat-label">
+                            <span class="name">⚡ Vitesse (Max 100)</span>
+                            <span class="val" id="val-speed">10</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill fill-speed" id="bar-speed" style="width: 10%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pile de Décorateurs -->
+                <div class="stack-section">
+                    <div class="stack-title">Pile des Décorateurs Appliqués</div>
+                    <div class="stack-badges" id="stack-badges">
+                        <div class="badge-decorator badge-base">🍄 Mario (Base)</div>
+                    </div>
+                </div>
+
+                <!-- Code Java Interactif -->
+                <div class="code-box" id="code-expression">new Mario()</div>
+
+                <!-- Boutons d'Action (Power-ups & Reset) -->
+                <div class="actions-grid">
+                    <button class="btn-action btn-mushroom" onclick="addPowerUp('mushroom')">
+                        🍄 + Champignon
+                    </button>
+                    <button class="btn-action btn-fire" onclick="addPowerUp('fire')">
+                        🔥 + Fleur de Feu
+                    </button>
+                    <button class="btn-action btn-cape" onclick="addPowerUp('cape')">
+                        🪶 + Cape
+                    </button>
+                    <button class="btn-action btn-star" onclick="addPowerUp('star')">
+                        ⭐ + Étoile
+                    </button>
+                    <button class="btn-action btn-undo" onclick="undoPowerUp()">
+                        ↩️ Annuler Dernier
+                    </button>
+                    <button class="btn-action btn-reset" onclick="resetState()">
+                        🔄 Réinitialiser Tout
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Studio d'Animation (Panneau Repliable) -->
+        <div class="studio-card">
+            <div class="studio-header" onclick="toggleStudio()">
+                <h3>🎬 Studio d'Animation & Calibration Timeline</h3>
+                <span id="studio-toggle-icon">▼ (Cliquer pour ouvrir)</span>
+            </div>
+            <div class="studio-content" id="studio-content">
+                <div class="scrubber-group">
+                    <label>
+                        <span>Scrubbing Timeline Manuel (0 à <span id="max-duration-text">--</span> s)</span>
+                        <span id="current-scrub-time" style="color: var(--accent-yellow); font-weight:700;">0.00 s</span>
+                    </label>
+                    <input type="range" id="timeline-scrubber" min="0" max="100" step="0.05" value="0" oninput="onScrub(this.value)">
+                </div>
+
+                <div class="calibration-controls">
+                    <select id="state-select">
+                        <option value="idle">Repos (Idle)</option>
+                        <option value="mushroom">Super Champignon</option>
+                        <option value="fire">Fleur de Feu</option>
+                        <option value="cape">Plume Cape</option>
+                        <option value="star">Étoile d'invincibilité</option>
+                    </select>
+
+                    <button class="btn-small" onclick="setRangeMark('start')">📍 Début</button>
+                    <button class="btn-small" onclick="setRangeMark('end')">🏁 Fin</button>
+                    <button class="btn-small" style="background: var(--accent-blue); color: black;" onclick="testSelectedRange()">▶️ Tester Plage</button>
+                    <button class="btn-small" style="background: rgba(244,67,54,0.3); border-color:#f44336;" onclick="resetAnimationRanges()">🔄 Plages Défaut</button>
+                </div>
+
+                <div class="ranges-display" id="ranges-display">
+                    <!-- Affichage dynamique des plages -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Crédits CC-BY -->
+        <footer>
+            Modèle 3D basé sur <a href="https://sketchfab.com/3d-models/mario-galaxy-full-animations-314e71faeadb4750850f607d8d78d2ff" target="_blank">"Mario Galaxy Full Animations"</a> par <strong>Sm64</strong> sous licence <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">CC-BY-4.0</a>.
+        </footer>
+    </div>
+
+    <!-- Script JavaScript applicatif -->
+    <script>
+        // --- 1. Génération des étoiles CSS ---
+        const starsContainer = document.getElementById('stars-container');
+        for (let i = 0; i < 80; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = `${Math.random() * 100}%`;
+            star.style.top = `${Math.random() * 100}%`;
+            const size = Math.random() * 3 + 1;
+            star.style.width = `${size}px`;
+            star.style.height = `${size}px`;
+            star.style.setProperty('--duration', `${Math.random() * 3 + 2}s`);
+            star.style.setProperty('--opacity', `${Math.random() * 0.7 + 0.3}`);
+            starsContainer.appendChild(star);
+        }
+
+        // --- 2. Initialisation 3D Three.js ---
+        const canvas = document.getElementById('three-canvas');
+        const container = document.getElementById('canvas-container');
+
+        const scene = new THREE.Scene();
+        scene.background = null; // Canvas transparent avec dégradé du conteneur
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+        camera.position.set(0, 1.4, 4.0);
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.target.set(0, 0.8, 0);
+
+        // Éclairage Thème Mario World (Soleil chaud + Ciel)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+        scene.add(ambientLight);
+
+        const hemiLight = new THREE.HemisphereLight(0x7ec0ee, 0x00b050, 0.7);
+        hemiLight.position.set(0, 20, 0);
+        scene.add(hemiLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+        sunLight.position.set(5, 12, 8);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 1024;
+        sunLight.shadow.mapSize.height = 1024;
+        scene.add(sunLight);
+
+        // --- 3. Création du Décors 3D Thème Super Mario ---
+        const marioWorldGroup = new THREE.Group();
+
+        // A. Plateforme de Sol Herbeux Mario
+        const platformGeo = new THREE.CylinderGeometry(2.4, 2.5, 0.3, 32);
+        const platformMat = new THREE.MeshStandardMaterial({
+            color: 0x00b050,
+            roughness: 0.4,
+            metalness: 0.1
+        });
+        const platform = new THREE.Mesh(platformGeo, platformMat);
+        platform.position.y = -0.15;
+        platform.receiveShadow = true;
+        marioWorldGroup.add(platform);
+
+        // Under-dirt layer
+        const dirtGeo = new THREE.CylinderGeometry(2.5, 2.6, 0.5, 32);
+        const dirtMat = new THREE.MeshStandardMaterial({
+            color: 0x8b4513,
+            roughness: 0.9
+        });
+        const dirt = new THREE.Mesh(dirtGeo, dirtMat);
+        dirt.position.y = -0.55;
+        marioWorldGroup.add(dirt);
+
+        // B. Tuyau Vert Iconique Mario
+        const pipeGroup = new THREE.Group();
+        const pipeBodyGeo = new THREE.CylinderGeometry(0.42, 0.42, 1.1, 24);
+        const pipeRimGeo = new THREE.CylinderGeometry(0.48, 0.48, 0.28, 24);
+        const pipeMat = new THREE.MeshStandardMaterial({
+            color: 0x00a800,
+            roughness: 0.2,
+            metalness: 0.2
+        });
+        const pipeBody = new THREE.Mesh(pipeBodyGeo, pipeMat);
+        pipeBody.position.y = 0.55;
+        pipeBody.castShadow = true;
+        pipeBody.receiveShadow = true;
+
+        const pipeRim = new THREE.Mesh(pipeRimGeo, pipeMat);
+        pipeRim.position.y = 1.05;
+        pipeRim.castShadow = true;
+
+        pipeGroup.add(pipeBody);
+        pipeGroup.add(pipeRim);
+        pipeGroup.position.set(1.4, 0, -0.6);
+        marioWorldGroup.add(pipeGroup);
+
+        // C. Bloc Surprise '?' Flottant
+        const blockGroup = new THREE.Group();
+        const blockGeo = new THREE.BoxGeometry(0.45, 0.45, 0.45);
+        const blockMat = new THREE.MeshStandardMaterial({
+            color: 0xffcc00,
+            roughness: 0.3,
+            emissive: 0xffaa00,
+            emissiveIntensity: 0.25
+        });
+        const questionBlock = new THREE.Mesh(blockGeo, blockMat);
+        questionBlock.castShadow = true;
+        blockGroup.add(questionBlock);
+        blockGroup.position.set(-1.3, 1.7, -0.4);
+        marioWorldGroup.add(blockGroup);
+
+        // D. Nuages Flottants Mario
+        function createCloud(x, y, z, scale) {
+            const cloud = new THREE.Group();
+            const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+            const s1 = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), cloudMat);
+            const s2 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), cloudMat);
+            const s3 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), cloudMat);
+            s2.position.set(-0.3, -0.05, 0);
+            s3.position.set(0.3, -0.05, 0);
+            cloud.add(s1, s2, s3);
+            cloud.position.set(x, y, z);
+            cloud.scale.setScalar(scale);
+            return cloud;
+        }
+        const cloud1 = createCloud(-2.2, 2.6, -2.2, 1.1);
+        const cloud2 = createCloud(2.1, 2.9, -2.5, 0.9);
+        marioWorldGroup.add(cloud1, cloud2);
+
+        // E. Collines Vertes de fond
+        const hillGeo = new THREE.SphereGeometry(2.0, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const hillMat = new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.8 });
+        const hill1 = new THREE.Mesh(hillGeo, hillMat);
+        hill1.position.set(-3.2, -0.2, -4.2);
+        hill1.scale.set(1.3, 1.0, 1.0);
+        const hill2 = new THREE.Mesh(hillGeo, hillMat);
+        hill2.position.set(2.6, -0.2, -4.5);
+        hill2.scale.set(1.6, 1.2, 1.0);
+        marioWorldGroup.add(hill1, hill2);
+
+        scene.add(marioWorldGroup);
+
+        // Variables d'Animation & Modèle 3D
+        let marioModel = null;
+        let baseScale = 1.0;
+        let mixer = null;
+        let action = null;
+        let totalDuration = 0;
+        let currentStack = [];
+
+        // Plages d'animation par défaut (en secondes)
+        const defaultAnimationRanges = {
+            idle: { start: 0, end: 4 },
+            mushroom: { start: 4, end: 8 },
+            fire: { start: 8, end: 12 },
+            cape: { start: 12, end: 16 },
+            star: { start: 16, end: 20 }
+        };
+
+        let animationRanges = JSON.parse(JSON.stringify(defaultAnimationRanges));
+
+        // Chargement du localStorage (dans un try/catch)
+        try {
+            const savedRanges = localStorage.getItem('mario_anim_ranges');
+            if (savedRanges) {
+                animationRanges = Object.assign(animationRanges, JSON.parse(savedRanges));
+            }
+        } catch (e) {
+            console.warn("Impossible de charger les plages depuis localStorage", e);
+        }
+
+        let currentActiveState = 'idle';
+        let currentPlaybackSpeed = 1.0;
+        let isManualTest = false;
+        let testRange = null;
+
+        // Chargement du Modèle GLTF LOCAL
+        const loader = new THREE.GLTFLoader();
+        loader.load('model/scene.gltf', function (gltf) {
+            marioModel = gltf.scene;
+
+            // Désactiver le frustum culling pour que le modèle ne disparaisse jamais pendant l'animation
+            marioModel.traverse(function(child) {
+                if (child.isMesh) {
+                    child.frustumCulled = false;
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            // Normalisation de la taille et centrage via Box3
+            const box = new THREE.Box3().setFromObject(marioModel);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            baseScale = 2.0 / (maxDim || 1);
+            marioModel.scale.setScalar(baseScale);
+
+            // Recentrer au pied du modèle sur la plateforme
+            marioModel.position.x = -center.x * baseScale;
+            marioModel.position.y = 0.0;
+            marioModel.position.z = -center.z * baseScale;
+
+            scene.add(marioModel);
+
+            // Traitement de l'animation unique
+            if (gltf.animations && gltf.animations.length > 0) {
+                mixer = new THREE.AnimationMixer(marioModel);
+                const clip = gltf.animations[0];
+                totalDuration = clip.duration;
+
+                // Mettre à jour l'UI scrubber
+                const scrubber = document.getElementById('timeline-scrubber');
+                scrubber.max = totalDuration;
+                document.getElementById('max-duration-text').innerText = totalDuration.toFixed(1);
+
+                action = mixer.clipAction(clip);
+                action.enabled = true;
+                action.play();
+                action.time = animationRanges.idle.start;
+            }
+
+            renderRangesDisplay();
+            updateStateFromApi();
+        }, undefined, function (error) {
+            console.error("Erreur chargement modèle 3D:", error);
+            document.getElementById('model-error-overlay').style.display = 'flex';
+        });
+
+        // Loop d'animation Three.js
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            const elapsedTime = clock.getElapsedTime();
+
+            // Animation subtile des éléments du décors Mario
+            if (blockGroup) {
+                blockGroup.position.y = 1.7 + Math.sin(elapsedTime * 3) * 0.08;
+                blockGroup.rotation.y = Math.sin(elapsedTime * 1.5) * 0.2;
+            }
+
+            if (cloud1 && cloud2) {
+                cloud1.position.x = -2.2 + Math.sin(elapsedTime * 0.5) * 0.2;
+                cloud2.position.x = 2.1 + Math.cos(elapsedTime * 0.4) * 0.2;
+            }
+
+            // Intégration Dynamique des Décorateurs sur le Modèle 3D
+            if (marioModel) {
+                const hasMushroom = currentStack && currentStack.includes('mushroom');
+                const hasFire = currentStack && currentStack.includes('fire');
+                const hasStar = currentStack && currentStack.includes('star');
+
+                // 1. Champignon (Sante +50) : Mario grandit en 3D (Scale 1.35x)
+                const targetScaleFactor = hasMushroom ? 1.35 : 1.0;
+                const targetScale = baseScale * targetScaleFactor;
+                marioModel.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+
+                // 2. Fleur de Feu (Puissance +30) : Aura lumineuse de feu / Emissive Orange
+                marioModel.traverse(function(child) {
+                    if (child.isMesh && child.material) {
+                        if (hasFire) {
+                            child.material.emissive = new THREE.Color(0xff4400);
+                            child.material.emissiveIntensity = 0.4 + Math.sin(elapsedTime * 6) * 0.2;
+                        } else if (!hasStar) {
+                            child.material.emissive = new THREE.Color(0x000000);
+                            child.material.emissiveIntensity = 0;
+                        }
+                    }
+                });
+
+                // 3. Étoile (Ultra Buff) : Rotation 360° continue + Clignotement Arc-en-Ciel !
+                if (hasStar || currentActiveState === 'star') {
+                    marioModel.rotation.y += delta * 2.5;
+                    marioModel.traverse(function(child) {
+                        if (child.isMesh && child.material) {
+                            const hue = (elapsedTime * 2) % 1;
+                            child.material.emissive.setHSL(hue, 1, 0.5);
+                            child.material.emissiveIntensity = 0.6;
+                        }
+                    });
+                } else {
+                    marioModel.rotation.y = 0; // Réinitialiser l'orientation
+                }
+            }
+
+            // Pilotage du Mixer d'Animation par Plages
+            if (mixer && action && totalDuration > 0) {
+                mixer.update(delta * currentPlaybackSpeed);
+
+                let range = isManualTest ? testRange : (animationRanges[currentActiveState] || animationRanges.idle);
+                
+                // Si l'animation sort de la plage définie, boucler sur range.start
+                if (action.time >= range.end || action.time < range.start) {
+                    action.time = range.start;
+                }
+
+                // Mettre à jour l'affichage du scrubber et du badge de segment 3D
+                const currentSec = action.time;
+                document.getElementById('timeline-scrubber').value = currentSec;
+                document.getElementById('current-scrub-time').innerText = currentSec.toFixed(2) + ' s';
+
+                document.getElementById('anim-segment-info').innerText = 
+                    `${currentActiveState.toUpperCase()} [${range.start}s - ${range.end}s] (Vitesse x${currentPlaybackSpeed.toFixed(2)})`;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Redimensionnement Responsive
+        window.addEventListener('resize', function () {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // --- 4. Synchronisation avec l'API Backend Java ---
+        async function fetchApi(endpoint) {
+            try {
+                const res = await fetch(endpoint);
+                if (!res.ok) throw new Error("Erreur HTTP " + res.status);
+                const data = await res.json();
+                renderState(data);
+            } catch (err) {
+                console.error("Erreur API Java:", err);
+            }
+        }
+
+        function updateStateFromApi() {
+            fetchApi('/api/state');
+        }
+
+        function addPowerUp(type) {
+            fetchApi('/api/add?p=' + type);
+            triggerPopupForType(type);
+        }
+
+        function undoPowerUp() {
+            fetchApi('/api/undo');
+        }
+
+        function resetState() {
+            fetchApi('/api/reset');
+        }
+
+        // Rendu de l'état renvoyé par l'API Java (Strictement AUCUNE logique de calcul dans JS)
+        function renderState(data) {
+            currentStack = data.stack || [];
+
+            // 1. Titre et description
+            document.getElementById('char-description').innerText = data.description;
+
+            // 2. Statistiques et Barres animées
+            document.getElementById('val-health').innerText = data.health;
+            document.getElementById('bar-health').style.width = Math.min(100, (data.health / 300) * 100) + '%';
+
+            document.getElementById('val-power').innerText = data.power;
+            document.getElementById('bar-power').style.width = Math.min(100, (data.power / 300) * 100) + '%';
+
+            document.getElementById('val-speed').innerText = data.speed;
+            document.getElementById('bar-speed').style.width = Math.min(100, (data.speed / 100) * 100) + '%';
+
+            // 3. Calcul de la vitesse de lecture dynamique d'animation imposée par le sujet
+            // Formule: 1 + (speed - 10) / 40.0
+            currentPlaybackSpeed = 1 + (data.speed - 10) / 40.0;
+
+            // 4. Badges de la pile visuelle (Stack)
+            const stackContainer = document.getElementById('stack-badges');
+            stackContainer.innerHTML = '';
+            
+            // Badge base
+            const baseBadge = document.createElement('div');
+            baseBadge.className = 'badge-decorator badge-base';
+            baseBadge.innerText = '🍄 Mario (Base)';
+            stackContainer.appendChild(baseBadge);
+
+            if (data.stack && data.stack.length > 0) {
+                data.stack.forEach((item, index) => {
+                    const badge = document.createElement('div');
+                    badge.className = 'badge-decorator badge-' + item;
+                    let icon = '✨';
+                    let label = item;
+                    if (item === 'mushroom') { icon = '🍄'; label = 'Champignon'; }
+                    else if (item === 'fire') { icon = '🔥'; label = 'Fleur de Feu'; }
+                    else if (item === 'cape') { icon = '🪶'; label = 'Cape'; }
+                    else if (item === 'star') { icon = '⭐'; label = 'Étoile'; }
+                    
+                    badge.innerText = `${icon} #${index + 1} ${label}`;
+                    stackContainer.appendChild(badge);
+                });
+
+                // Dernier power-up appliqué
+                const lastPowerUp = data.stack[data.stack.length - 1];
+                currentActiveState = lastPowerUp;
+                applyViewerEffect(lastPowerUp);
+            } else {
+                currentActiveState = 'idle';
+                applyViewerEffect('none');
+            }
+
+            // 5. Code Java interactif
+            document.getElementById('code-expression').innerText = data.javaExpression || 'new Mario()';
+
+            // Réinitialiser le test manuel lors du changement d'état via l'API
+            isManualTest = false;
+        }
+
+        // Effets visuels sur la carte 3D selon le dernier décorateur
+        function applyViewerEffect(effectClass) {
+            const card = document.getElementById('viewer-card');
+            card.className = 'viewer-card effect-' + effectClass;
+        }
+
+        // Popups d'effets visuels flottants
+        function triggerPopupForType(type) {
+            const container = document.getElementById('popups-container');
+            const popup = document.createElement('div');
+            popup.className = 'floating-popup';
+            
+            if (type === 'mushroom') popup.innerText = '+50 ❤ Santé ! (Grandit en 3D)';
+            else if (type === 'fire') popup.innerText = '+30 ⚔ Puissance ! (Aura de feu)';
+            else if (type === 'cape') popup.innerText = '+5 ⚔ | +20 ⚡ Vitesse ! (Accélère)';
+            else if (type === 'star') popup.innerText = '+100 ⭐ | +15 ⚡ Ultra Buff ! (Rotation Arc-en-Ciel)';
+
+            container.appendChild(popup);
+            setTimeout(() => popup.remove(), 2000);
+        }
+
+        // --- 5. Logique du Studio d'Animation ---
+        function toggleStudio() {
+            const content = document.getElementById('studio-content');
+            const icon = document.getElementById('studio-toggle-icon');
+            content.classList.toggle('open');
+            if (content.classList.contains('open')) {
+                icon.innerText = '▲ (Cliquer pour fermer)';
+            } else {
+                icon.innerText = '▼ (Cliquer pour ouvrir)';
+            }
+        }
+
+        function onScrub(val) {
+            if (action && mixer) {
+                action.time = parseFloat(val);
+                mixer.update(0.0001); // Forcer l'actualisation instantanée des os
+                document.getElementById('current-scrub-time').innerText = parseFloat(val).toFixed(2) + ' s';
+            }
+        }
+
+        function setRangeMark(type) {
+            if (!action) return;
+            const state = document.getElementById('state-select').value;
+            const currentTime = action.time;
+
+            if (!animationRanges[state]) {
+                animationRanges[state] = { start: 0, end: 4 };
+            }
+
+            if (type === 'start') {
+                animationRanges[state].start = parseFloat(currentTime.toFixed(2));
+            } else {
+                animationRanges[state].end = parseFloat(currentTime.toFixed(2));
+            }
+
+            // Inverser si start > end
+            if (animationRanges[state].start > animationRanges[state].end) {
+                const temp = animationRanges[state].start;
+                animationRanges[state].start = animationRanges[state].end;
+                animationRanges[state].end = temp;
+            }
+
+            saveRanges();
+            renderRangesDisplay();
+        }
+
+        function testSelectedRange() {
+            const state = document.getElementById('state-select').value;
+            testRange = animationRanges[state] || { start: 0, end: 4 };
+            isManualTest = true;
+            if (action) {
+                action.time = testRange.start;
+            }
+        }
+
+        function resetAnimationRanges() {
+            animationRanges = JSON.parse(JSON.stringify(defaultAnimationRanges));
+            try {
+                localStorage.removeItem('mario_anim_ranges');
+            } catch (e) {
+                console.warn("Erreur suppression localStorage", e);
+            }
+            renderRangesDisplay();
+        }
+
+        function saveRanges() {
+            try {
+                localStorage.setItem('mario_anim_ranges', JSON.stringify(animationRanges));
+            } catch (e) {
+                console.warn("Erreur sauvegarde localStorage", e);
+            }
+        }
+
+        function renderRangesDisplay() {
+            const container = document.getElementById('ranges-display');
+            container.innerHTML = '';
+            for (let key in animationRanges) {
+                const item = document.createElement('div');
+                item.className = 'range-item';
+                const r = animationRanges[key];
+                item.innerHTML = `<strong>${key.toUpperCase()}</strong>: <span>[${r.start}s - ${r.end}s]</span>`;
+                container.appendChild(item);
+            }
+        }
+    </script>
+</body>
+</html>

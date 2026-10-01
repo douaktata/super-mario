@@ -1,0 +1,10 @@
+# Dossier des fichiers compiles Java
+out/
+bin/
+*.class
+
+# Fichiers IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
